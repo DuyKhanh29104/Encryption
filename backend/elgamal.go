@@ -24,40 +24,72 @@ func generateElGamalKeys(bits int) {
 	y.Exp(g, x, p)
 }
 
-// Mã hóa ElGamal
+// Mã hóa ElGamal với thông điệp dài
 func encryptElGamal(message string) (string, error) {
-	msgInt := new(big.Int).SetBytes([]byte(message))
-	if msgInt.Cmp(p) >= 0 {
-		return "", fmt.Errorf("message quá lớn")
+	// Chia nhỏ thông điệp thành các phần nhỏ (mỗi phần có độ dài phù hợp)
+	chunkSize := (p.BitLen() / 8) - 1 // Kích thước tối đa của mỗi phần thông điệp
+	var chunks []string
+
+	// Chia thông điệp thành các đoạn nhỏ
+	for i := 0; i < len(message); i += chunkSize {
+		end := i + chunkSize
+		if end > len(message) {
+			end = len(message)
+		}
+		chunks = append(chunks, message[i:end])
 	}
 
-	k, _ := rand.Int(rand.Reader, new(big.Int).Sub(p, big.NewInt(2)))
-	k.Add(k, big.NewInt(1))
-	c1 := new(big.Int).Exp(g, k, p)
-	s := new(big.Int).Exp(y, k, p)
-	c2 := new(big.Int).Mul(msgInt, s)
-	c2.Mod(c2, p)
+	var encryptedChunks []string
 
-	return fmt.Sprintf("%x,%x", c1, c2), nil
+	// Mã hóa từng đoạn thông điệp
+	for _, chunk := range chunks {
+		msgInt := new(big.Int).SetBytes([]byte(chunk))
+		if msgInt.Cmp(p) >= 0 {
+			return "", fmt.Errorf("message quá lớn")
+		}
+
+		k, _ := rand.Int(rand.Reader, new(big.Int).Sub(p, big.NewInt(2)))
+		k.Add(k, big.NewInt(1))
+		c1 := new(big.Int).Exp(g, k, p)
+		s := new(big.Int).Exp(y, k, p)
+		c2 := new(big.Int).Mul(msgInt, s)
+		c2.Mod(c2, p)
+
+		// Thêm phần mã hóa vào danh sách
+		encryptedChunks = append(encryptedChunks, fmt.Sprintf("%x,%x", c1, c2))
+	}
+
+	// Kết hợp các phần mã hóa thành một chuỗi
+	return strings.Join(encryptedChunks, "|"), nil
 }
 
-// Giải mã ElGamal
+// Giải mã ElGamal với thông điệp dài
 func decryptElGamal(encryptedMessage string) (string, error) {
-	parts := strings.Split(encryptedMessage, ",")
-	if len(parts) != 2 {
-		return "", fmt.Errorf("sai định dạng bản mã")
+	// Chia các phần mã hóa đã nhận được
+	parts := strings.Split(encryptedMessage, "|")
+	var decryptedMessage []string
+
+	for _, part := range parts {
+		chunks := strings.Split(part, ",")
+		if len(chunks) != 2 {
+			return "", fmt.Errorf("sai định dạng bản mã")
+		}
+
+		c1, _ := new(big.Int).SetString(chunks[0], 16)
+		c2, _ := new(big.Int).SetString(chunks[1], 16)
+
+		s := new(big.Int).Exp(c1, x, p)
+		sInv := new(big.Int).ModInverse(s, p)
+
+		msgInt := new(big.Int).Mul(c2, sInv)
+		msgInt.Mod(msgInt, p)
+
+		// Giải mã từng phần và thêm vào kết quả
+		decryptedMessage = append(decryptedMessage, string(msgInt.Bytes()))
 	}
 
-	c1, _ := new(big.Int).SetString(parts[0], 16)
-	c2, _ := new(big.Int).SetString(parts[1], 16)
-
-	s := new(big.Int).Exp(c1, x, p)
-	sInv := new(big.Int).ModInverse(s, p)
-
-	msgInt := new(big.Int).Mul(c2, sInv)
-	msgInt.Mod(msgInt, p)
-
-	return string(msgInt.Bytes()), nil
+	// Kết hợp các phần đã giải mã thành thông điệp gốc
+	return strings.Join(decryptedMessage, ""), nil
 }
 
 // Tạo chữ ký ElGamal

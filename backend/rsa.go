@@ -6,6 +6,8 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
+	"math"
+	"strings"
 )
 
 var rsaPrivateKey *rsa.PrivateKey
@@ -53,6 +55,50 @@ func decryptRSA(encryptedMessage string) (string, error) {
 	return string(decryptedBytes), nil
 }
 
+// Chia nhỏ thông điệp và mã hóa từng khối, sau đó nối các khối lại thành một chuỗi duy nhất
+func encryptLongMessage(message string) (string, error) {
+	// Xác định kích thước khối dựa trên khóa RSA
+	blockSize := rsaPublicKey.Size() - 2*sha256.Size - 2
+	var encryptedMessage string
+
+	// Chia nhỏ thông điệp thành các khối và mã hóa từng khối, nối lại thành một chuỗi
+	for start := 0; start < len(message); start += blockSize {
+		end := int(math.Min(float64(start+blockSize), float64(len(message))))
+		encryptedBlock, err := encryptRSA(message[start:end])
+		if err != nil {
+			return "", err
+		}
+		// Nối các khối lại thành một chuỗi
+		encryptedMessage += encryptedBlock + ","
+	}
+
+	// Xóa dấu phẩy cuối cùng
+	if len(encryptedMessage) > 0 {
+		encryptedMessage = encryptedMessage[:len(encryptedMessage)-1]
+	}
+
+	return encryptedMessage, nil
+}
+
+// Giải mã từng khối và ghép lại thông điệp ban đầu
+func decryptLongMessage(encryptedMessage string) (string, error) {
+	var decryptedMessage string
+
+	// Chia thông điệp thành các khối
+	encryptedBlocks := strings.Split(encryptedMessage, ",")
+
+	// Giải mã từng khối và ghép lại thành thông điệp ban đầu
+	for _, encryptedBlock := range encryptedBlocks {
+		decryptedBlock, err := decryptRSA(encryptedBlock)
+		if err != nil {
+			return "", err
+		}
+		decryptedMessage += decryptedBlock
+	}
+
+	return decryptedMessage, nil
+}
+
 // Tạo chữ ký số (Digital Signature)
 func signMessage(message string) (string, error) {
 	// Hash thông điệp bằng SHA-256
@@ -77,38 +123,3 @@ func verifySignature(message string, signature string) bool {
 	return err == nil
 }
 
-// func main() {
-// 	// Tạo cặp khóa RSA (2048 bits)
-// 	generateRSAKeys(2048)
-
-// 	// Thông điệp cần mã hóa
-// 	message := "Hello, RSA with Digital Signature!"
-
-// 	// Mã hóa thông điệp
-// 	encryptedMessage, err := encryptRSA(message)
-// 	if err != nil {
-// 		fmt.Println("Error encrypting message:", err)
-// 		return
-// 	}
-// 	fmt.Println("Encrypted Message:", encryptedMessage)
-
-// 	// Giải mã thông điệp
-// 	decryptedMessage, err := decryptRSA(encryptedMessage)
-// 	if err != nil {
-// 		fmt.Println("Error decrypting message:", err)
-// 		return
-// 	}
-// 	fmt.Println("Decrypted Message:", decryptedMessage)
-
-// 	// Ký thông điệp
-// 	signature, err := signMessage(message)
-// 	if err != nil {
-// 		fmt.Println("Error signing message:", err)
-// 		return
-// 	}
-// 	fmt.Println("Digital Signature:", signature)
-
-// 	// Xác thực chữ ký
-// 	isValid := verifySignature(message, signature)
-// 	fmt.Println("Signature Valid:", isValid)
-// }

@@ -26,7 +26,6 @@ type DecryptResponse struct {
 	DecryptedMessage string `json:"decryptedMessage"`
 }
 
-// Struct cho yêu cầu và phản hồi chữ ký số
 type SignRequest struct {
 	Algorithm string `json:"algorithm"`
 	Message   string `json:"message"`
@@ -52,12 +51,14 @@ func encryptHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch strings.ToUpper(req.Algorithm) {
 	case "RSA":
-		encryptedMessage, err := encryptRSA(req.Message)
+		encryptedMessage, err := encryptLongMessage(req.Message) 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+	
 		json.NewEncoder(w).Encode(EncryptResponse{EncryptedMessage: encryptedMessage})
+	
 
 	case "ELGAMAL":
 		encryptedMessage, err := encryptElGamal(req.Message)
@@ -83,7 +84,7 @@ func decryptHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch strings.ToUpper(req.Algorithm) {
 	case "RSA":
-		decryptedMessage, err := decryptRSA(req.EncryptedMessage)
+		decryptedMessage, err := decryptLongMessage(req.EncryptedMessage)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
